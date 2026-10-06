@@ -9,10 +9,10 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -78,7 +78,7 @@ private fun WidgetContent(s: StreakInfo) {
             .background(ColorProvider(bgColor))
             .cornerRadius(24.dp)
             .padding(10.dp)
-            .clickable(actionStartActivity<MainActivity>()),
+            .clickable(actionStartActivity(MainActivity::class.java)),
         verticalAlignment = Alignment.CenterVertically,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
