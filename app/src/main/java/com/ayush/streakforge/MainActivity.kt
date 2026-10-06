@@ -276,7 +276,7 @@ fun App() {
                         )
                         Spacer(Modifier.height(10.dp))
                         LinearProgressIndicator(
-                            progress = { (streak.current.toFloat() / nextReward.day).coerceAtMost(1f) },
+                            progress = (streak.current.toFloat() / nextReward.day).coerceAtMost(1f),
                             modifier = Modifier.fillMaxWidth().height(8.dp),
                             color = Ember, trackColor = Night
                         )
@@ -335,7 +335,7 @@ fun App() {
                     Text("Goal: $DAILY_GOAL problems a day", color = Muted, fontSize = 13.sp)
                     Spacer(Modifier.height(12.dp))
                     LinearProgressIndicator(
-                        progress = { (solved.toFloat() / DSA_TARGET).coerceAtMost(1f) },
+                        progress = (solved.toFloat() / DSA_TARGET).coerceAtMost(1f),
                         modifier = Modifier.fillMaxWidth().height(8.dp),
                         color = Gold, trackColor = Night
                     )

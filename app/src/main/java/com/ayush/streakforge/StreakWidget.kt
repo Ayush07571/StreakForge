@@ -103,8 +103,7 @@ private fun WidgetContent(s: StreakInfo) {
                 color = ColorProvider(labelColor),
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
-            ),
-            maxLines = 2
+            )
         )
     }
 }
