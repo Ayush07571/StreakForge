@@ -1,9 +1,13 @@
 package com.ayush.streakforge
 
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,8 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -88,21 +95,95 @@ fun App() {
     val week = (daysIn / 7 + 1).coerceAtMost(DSA_WEEKS.size)
     val expected = ((daysIn + 1) * DAILY_GOAL).coerceAtMost(DSA_TARGET)
 
+    val stState = flameState(streak)
+    val animScale = try {
+        Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+    } catch (e: Exception) {
+        1f
+    }
+    val isAnimationEnabled = animScale > 0f
+
+    val flameScale = if (stState == FlameState.LIT && isAnimationEnabled) {
+        val infiniteTransition = rememberInfiniteTransition(label = "flameFlicker")
+        val s by infiniteTransition.animateFloat(
+            initialValue = 0.96f,
+            targetValue = 1.04f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "flameScale"
+        )
+        s
+    } else {
+        1f
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Night).statusBarsPadding(),
         contentPadding = PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            val flameRes = when (stState) {
+                FlameState.LIT -> R.drawable.flame_lit
+                FlameState.FADING -> R.drawable.flame_fading
+                FlameState.BROKEN -> R.drawable.wood_burnt
+            }
+            val numberColor = when (stState) {
+                FlameState.LIT -> Gold
+                FlameState.FADING -> Muted
+                FlameState.BROKEN -> Muted
+            }
+            val statusMsg = when (stState) {
+                FlameState.LIT -> "Today is in the bank. Nice work."
+                FlameState.FADING -> "Push today to keep it alive"
+                FlameState.BROKEN -> "Streak broke. Start again today."
+            }
+            val statusColor = when (stState) {
+                FlameState.LIT -> Gold
+                FlameState.FADING -> Ember
+                FlameState.BROKEN -> Ember
+            }
+
+            val isDebug = (ctx.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+
             Column(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("🔥", fontSize = 64.sp)
-                Text("${streak.current}", fontSize = 96.sp, fontWeight = FontWeight.Black, color = Gold)
+                Image(
+                    painter = painterResource(flameRes),
+                    contentDescription = "Streak Flame Visual",
+                    modifier = Modifier
+                        .size(96.dp)
+                        .scale(flameScale)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "${streak.current}",
+                    fontSize = 96.sp,
+                    fontWeight = FontWeight.Black,
+                    color = numberColor,
+                    modifier = if (isDebug) {
+                        Modifier.pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    val next = when (stState) {
+                                        FlameState.LIT -> StreakInfo(current = streak.current.coerceAtLeast(1), longest = streak.longest, todayDone = false, total = streak.total)
+                                        FlameState.FADING -> StreakInfo(current = 0, longest = streak.longest, todayDone = false, total = streak.total)
+                                        FlameState.BROKEN -> StreakInfo(current = 7, longest = streak.longest.coerceAtLeast(7), todayDone = true, total = streak.total + 1)
+                                    }
+                                    Store.saveStreak(ctx, next)
+                                    streak = next
+                                    scope.launch { StreakWidget().updateAll(ctx) }
+                                }
+                            )
+                        }
+                    } else Modifier
+                )
                 Text("day streak", fontSize = 18.sp, color = Ash)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (streak.todayDone) "Today is in the bank. Nice work."
-                    else "No commit yet today. Push something small.",
-                    color = if (streak.todayDone) Gold else Ember,
+                    statusMsg,
+                    color = statusColor,
                     textAlign = TextAlign.Center
                 )
                 Text("Best streak: ${streak.longest} days", color = Muted, fontSize = 13.sp)

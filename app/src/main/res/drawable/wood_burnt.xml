@@ -1,0 +1,51 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- Thin smoke wisps -->
+    <path
+        android:fillColor="#4D70687C"
+        android:pathData="M42,20C40,28 46,34 44,42C42,50 48,54 46,60H50C52,54 46,50 48,42C50,34 44,28 46,20Z" />
+    <path
+        android:fillColor="#338E839C"
+        android:pathData="M54,12C52,22 58,28 56,38C54,48 58,54 56,62H59C61,54 57,48 59,38C61,28 55,22 57,12Z" />
+
+    <!-- Scattered Ash particles at base -->
+    <path
+        android:fillColor="#5A5263"
+        android:pathData="M20,82C18,82 18,80 20,80C22,80 22,82 20,82Z M76,84C74,84 74,82 76,82C78,82 78,84 76,84Z M30,85C28,85 28,83 30,83C32,83 32,85 30,85Z M66,81C64,81 64,79 66,79C68,79 68,81 66,81Z" />
+
+    <!-- Burnt Log 1 (Diagonal Left to Right) -->
+    <path
+        android:fillColor="#241B18"
+        android:pathData="M18,78L70,58C73,57 76,59 77,62L78,65C79,68 77,71 74,72L22,92C19,93 16,91 15,88L14,85C13,82 15,79 18,78Z" />
+
+    <!-- Char / Bark Texture on Log 1 -->
+    <path
+        android:fillColor="#140E0C"
+        android:pathData="M26,77L36,73M44,70L54,66M60,64L68,61"
+        android:strokeWidth="2"
+        android:strokeColor="#140E0C" />
+
+    <!-- Burnt Log 2 (Diagonal Right to Left crossing) -->
+    <path
+        android:fillColor="#302320"
+        android:pathData="M78,78L26,58C23,57 20,59 19,62L18,65C17,68 19,71 22,72L74,92C77,93 80,91 81,88L82,85C83,82 81,79 78,78Z" />
+
+    <!-- Char Marks on Log 2 -->
+    <path
+        android:fillColor="#1A1210"
+        android:pathData="M70,77L60,73M52,70L42,66M36,64L28,61"
+        android:strokeWidth="2"
+        android:strokeColor="#1A1210" />
+
+    <!-- Glowing Charcoal / Faint Ember Cracks on Wood -->
+    <path
+        android:fillColor="#D84315"
+        android:pathData="M44,68L48,67L52,69L48,70Z M38,72L40,71L42,73Z M54,64L56,63L58,65Z" />
+    <path
+        android:fillColor="#FF6D00"
+        android:pathData="M46,68L48,67.5L50,69Z" />
+</vector>

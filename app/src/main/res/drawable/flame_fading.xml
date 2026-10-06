@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- Outer Dim Aura -->
+    <path
+        android:fillColor="#1F524A5E"
+        android:pathData="M48,8C24,28 16,52 24,72C32,90 64,90 72,72C80,52 72,28 48,8Z" />
+
+    <!-- Outer Flame - Dark Desaturated Charcoal Plum -->
+    <path
+        android:fillColor="#4A4254"
+        android:pathData="M48,12C36,28 22,46 26,68C29,82 67,82 70,68C74,46 60,28 48,12Z" />
+
+    <!-- Mid Flame - Muted Greyish Purple -->
+    <path
+        android:fillColor="#6B6078"
+        android:pathData="M48,26C40,38 30,52 33,70C36,80 60,80 63,70C66,52 56,38 48,26Z" />
+
+    <!-- Inner Core Flame - Muted Ash Grey -->
+    <path
+        android:fillColor="#8F839C"
+        android:pathData="M48,42C43,50 38,60 40,72C42,78 54,78 56,72C58,60 53,50 48,42Z" />
+
+    <!-- Fading Embers Core - Soft Fading Ash -->
+    <path
+        android:fillColor="#A99BC4"
+        android:pathData="M48,56C45,61 43,66 44,74C45,76 51,76 52,74C53,66 51,61 48,56Z" />
+</vector>

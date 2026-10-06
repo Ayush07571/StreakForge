@@ -8,6 +8,14 @@ import java.time.LocalDate
 
 data class StreakInfo(val current: Int, val longest: Int, val todayDone: Boolean, val total: Int)
 
+enum class FlameState { LIT, FADING, BROKEN }
+
+fun flameState(s: StreakInfo): FlameState = when {
+    s.todayDone && s.current > 0 -> FlameState.LIT
+    !s.todayDone && s.current > 0 -> FlameState.FADING
+    else -> FlameState.BROKEN
+}
+
 data class Reward(val day: Int, val emoji: String, val label: String)
 
 // Edit this list to change your rewards.
