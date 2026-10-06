@@ -3,20 +3,28 @@ package com.ayush.streakforge
 import android.content.Context
 import androidx.glance.appwidget.updateAll
 import androidx.work.*
+import com.ayush.streakforge.data.StreakRepository
 import java.util.concurrent.TimeUnit
 
 class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        val user = Store.username(applicationContext)
-        val token = Store.token(applicationContext)
-        if (user.isBlank() || token.isBlank()) return Result.success()
-        return try {
-            val shields = Store.shields(applicationContext)
-            Store.saveStreak(applicationContext, GitHub.fetch(user, token, shields))
+        val repository = StreakRepository(applicationContext)
+        val activeUser = repository.getActiveUser()
+        val token = repository.getToken(activeUser)
+        if (activeUser.isBlank() || token.isBlank()) return Result.success()
+
+        val result = repository.refreshActiveUser()
+        return if (result.isSuccess) {
             StreakWidget().updateAll(applicationContext)
             Result.success()
-        } catch (e: Exception) {
-            Result.retry()
+        } else {
+            val err = result.exceptionOrNull()?.message ?: ""
+            if (err.contains("401")) {
+                StreakWidget().updateAll(applicationContext)
+                Result.failure()
+            } else {
+                Result.retry()
+            }
         }
     }
 }

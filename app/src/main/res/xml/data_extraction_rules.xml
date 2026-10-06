@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="secret_tokens.xml" />
+        <exclude domain="sharedpref" path="streak_secure.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="secret_tokens.xml" />
+        <exclude domain="sharedpref" path="streak_secure.xml" />
+    </device-transfer>
+</data-extraction-rules>

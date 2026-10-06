@@ -1,10 +1,12 @@
 package com.ayush.streakforge
 
 import android.content.Context
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+
+data class ContributionDay(val date: String, val count: Int)
 
 data class StreakInfo(
     val current: Int,
@@ -12,16 +14,21 @@ data class StreakInfo(
     val todayDone: Boolean,
     val total: Int,
     val shields: Int = 0,
-    val shieldActive: Boolean = false
+    val shieldActive: Boolean = false,
+    val last14Days: List<ContributionDay> = emptyList(),
+    val localUtcResetTime: String = ""
 )
 
 enum class FlameState { LIT, FADING, BROKEN }
 
-fun flameState(s: StreakInfo): FlameState = when {
-    (s.todayDone || s.shieldActive) && s.current > 0 -> FlameState.LIT
-    !s.todayDone && s.current > 0 -> FlameState.FADING
+fun flameState(current: Int, todayDone: Boolean): FlameState = when {
+    todayDone && current > 0 -> FlameState.LIT
+    !todayDone && current > 0 -> FlameState.FADING
     else -> FlameState.BROKEN
 }
+
+fun flameState(s: StreakInfo): FlameState = flameState(s.current, s.todayDone || s.shieldActive)
+
 
 data class Reward(
     val day: Int,
@@ -83,153 +90,108 @@ val QUOTES = listOf(
     "Small daily wins compound into a career."
 )
 
-object Store {
-    private fun p(c: Context) = c.getSharedPreferences("streak", Context.MODE_PRIVATE)
+fun computeStreak(
+    days: List<ContributionDay>,
+    totalContributions: Int = 0,
+    shields: Int = 0,
+    isShieldActive: Boolean = false,
+    todayUtc: LocalDate = LocalDate.now(ZoneOffset.UTC)
+): StreakInfo {
+    val validDays = days.filter {
+        try {
+            LocalDate.parse(it.date) <= todayUtc
+        } catch (e: Exception) {
+            false
+        }
+    }.sortedBy { it.date }
 
-    fun username(c: Context) = p(c).getString("user", "") ?: ""
-    fun token(c: Context) = p(c).getString("token", "") ?: ""
-    fun saveLogin(c: Context, u: String, t: String) =
-        p(c).edit().putString("user", u.trim()).putString("token", t.trim()).apply()
+    if (validDays.isEmpty()) {
+        return StreakInfo(
+            current = 0,
+            longest = 0,
+            todayDone = false,
+            total = totalContributions,
+            shields = shields,
+            shieldActive = false,
+            last14Days = emptyList(),
+            localUtcResetTime = getLocalUtcResetTime()
+        )
+    }
 
-    fun saveStreak(c: Context, s: StreakInfo) = p(c).edit()
-        .putInt("cur", s.current).putInt("long", s.longest)
-        .putBoolean("done", s.todayDone).putInt("total", s.total)
-        .putInt("shields", s.shields)
-        .putBoolean("shieldActive", s.shieldActive)
-        .apply()
+    val dayMap = validDays.associate { it.date to it.count }
+    val todayStr = todayUtc.toString()
+    val todayDone = (dayMap[todayStr] ?: 0) > 0
 
-    fun streak(c: Context) = StreakInfo(
-        p(c).getInt("cur", 0), p(c).getInt("long", 0),
-        p(c).getBoolean("done", false), p(c).getInt("total", 0),
-        p(c).getInt("shields", 0), p(c).getBoolean("shieldActive", false)
+    var checkDate = if (todayDone) todayUtc else todayUtc.minusDays(1)
+    var current = 0
+    var activeShieldUsed = false
+    var remainingShields = shields
+
+    // Only apply shield protection if explicitly activated by user!
+    var shieldAvailableToUse = if (isShieldActive && shields > 0) 1 else 0
+
+    while (true) {
+        val dateStr = checkDate.toString()
+        val count = dayMap[dateStr] ?: 0
+        if (count > 0) {
+            current++
+            checkDate = checkDate.minusDays(1)
+        } else if (shieldAvailableToUse > 0) {
+            current++
+            shieldAvailableToUse--
+            activeShieldUsed = true
+            remainingShields = (remainingShields - 1).coerceAtLeast(0)
+            checkDate = checkDate.minusDays(1)
+        } else {
+            break
+        }
+    }
+
+    var longest = 0
+    var run = 0
+    for (d in validDays) {
+        if (d.count > 0) {
+            run++
+            if (run > longest) longest = run
+        } else {
+            run = 0
+        }
+    }
+    if (current > longest) longest = current
+
+    val last14 = (0..13).map { offset ->
+        val d = todayUtc.minusDays((13 - offset).toLong()).toString()
+        ContributionDay(d, dayMap[d] ?: 0)
+    }
+
+    return StreakInfo(
+        current = current,
+        longest = longest,
+        todayDone = todayDone,
+        total = if (totalContributions > 0) totalContributions else validDays.sumOf { it.count },
+        shields = remainingShields,
+        shieldActive = activeShieldUsed,
+        last14Days = last14,
+        localUtcResetTime = getLocalUtcResetTime()
     )
-
-    fun shields(c: Context): Int = p(c).getInt("shields", 0)
-    fun addShield(c: Context, amount: Int = 1) {
-        val cur = shields(c)
-        p(c).edit().putInt("shields", cur + amount).apply()
-    }
-
-    fun restoresThisMonth(c: Context): Int {
-        val currentMonthKey = LocalDate.now().toString().substring(0, 7) // "YYYY-MM"
-        val savedMonth = p(c).getString("restoreMonth", "") ?: ""
-        if (savedMonth != currentMonthKey) {
-            p(c).edit().putString("restoreMonth", currentMonthKey).putInt("restoresCount", 0).apply()
-            return 0
-        }
-        return p(c).getInt("restoresCount", 0)
-    }
-
-    fun canRestore(c: Context): Boolean = restoresThisMonth(c) < 2
-
-    fun useRestore(c: Context): Int {
-        val currentCount = restoresThisMonth(c)
-        if (currentCount >= 2) return 0
-        val newCount = currentCount + 1
-        val currentMonthKey = LocalDate.now().toString().substring(0, 7)
-        p(c).edit().putString("restoreMonth", currentMonthKey).putInt("restoresCount", newCount).apply()
-        return 2 - newCount
-    }
-
-    fun claimed(c: Context): Set<Int> =
-        (p(c).getStringSet("claimed", emptySet()) ?: emptySet()).map { it.toInt() }.toSet()
-
-    fun claim(c: Context, day: Int) {
-        val set = claimed(c).map { it.toString() }.toMutableSet().apply { add(day.toString()) }
-        p(c).edit().putStringSet("claimed", set).apply()
-        val reward = REWARDS.firstOrNull { it.day == day }
-        if (reward?.grantShield == true) {
-            addShield(c, 1)
-        }
-    }
-
-    fun planStart(c: Context): LocalDate {
-        val saved = p(c).getString("planStart", null)
-        if (saved != null) return LocalDate.parse(saved)
-        val today = LocalDate.now()
-        p(c).edit().putString("planStart", today.toString()).apply()
-        return today
-    }
-
-    fun solved(c: Context) = p(c).getInt("solved", 0)
-    fun setSolved(c: Context, n: Int) = p(c).edit().putInt("solved", n.coerceAtLeast(0)).apply()
 }
 
-object GitHub {
-    private const val QUERY =
-        "query(\$login:String!,\$from:DateTime!){user(login:\$login){contributionsCollection(from:\$from)" +
-        "{contributionCalendar{totalContributions weeks{contributionDays{date contributionCount}}}}}}"
-
-    fun fetch(user: String, token: String, shieldsAvailable: Int = 0): StreakInfo {
-        val from = LocalDate.now().minusDays(364).toString() + "T00:00:00Z"
-        val body = JSONObject().put("query", QUERY)
-            .put("variables", JSONObject().put("login", user).put("from", from)).toString()
-
-        val c = URL("https://api.github.com/graphql").openConnection() as HttpURLConnection
-        c.requestMethod = "POST"
-        c.connectTimeout = 15000
-        c.readTimeout = 15000
-        c.doOutput = true
-        c.setRequestProperty("Authorization", "bearer $token")
-        c.setRequestProperty("Content-Type", "application/json")
-        c.setRequestProperty("User-Agent", "StreakForge")
-        c.outputStream.use { it.write(body.toByteArray()) }
-
-        val code = c.responseCode
-        if (code == 401) throw Exception("Token rejected. Check it and try again.")
-        val text = (if (code in 200..299) c.inputStream else c.errorStream).bufferedReader().use { it.readText() }
-        if (code !in 200..299) throw Exception("GitHub returned $code")
-
-        val json = JSONObject(text)
-        if (json.has("errors")) throw Exception(json.getJSONArray("errors").getJSONObject(0).getString("message"))
-        val cal = json.getJSONObject("data").getJSONObject("user")
-            .getJSONObject("contributionsCollection").getJSONObject("contributionCalendar")
-
-        val counts = mutableListOf<Int>()
-        val weeks = cal.getJSONArray("weeks")
-        for (w in 0 until weeks.length()) {
-            val days = weeks.getJSONObject(w).getJSONArray("contributionDays")
-            for (d in 0 until days.length()) counts.add(days.getJSONObject(d).getInt("contributionCount"))
-        }
-        return computeStreak(counts, cal.getInt("totalContributions"), shieldsAvailable)
+fun getLocalUtcResetTime(): String {
+    return try {
+        val utcZero = java.time.LocalTime.MIDNIGHT.atDate(LocalDate.now()).atZone(ZoneOffset.UTC)
+        val localZone = ZoneId.systemDefault()
+        val localTime = utcZero.withZoneSameInstant(localZone)
+        val formatter = DateTimeFormatter.ofPattern("hh:mm a z")
+        localTime.format(formatter)
+    } catch (e: Exception) {
+        "00:00 UTC"
     }
+}
 
-    // counts: oldest first, last entry is "today" on GitHub's calendar.
-    fun computeStreak(counts: List<Int>, total: Int, shieldsAvailable: Int = 0): StreakInfo {
-        if (counts.isEmpty()) return StreakInfo(0, 0, false, total, shieldsAvailable)
-        val todayDone = counts.last() > 0
-        var i = counts.lastIndex
-        if (!todayDone) i-- // yesterday
-        
-        var current = 0
-        var available = shieldsAvailable
-        var shieldActive = false
-        
-        while (i >= 0) {
-            if (counts[i] > 0) {
-                current++
-                i--
-            } else if (available > 0 && current > 0) {
-                // Shield protects 1 missed day!
-                current++
-                available--
-                shieldActive = true
-                i--
-            } else {
-                break
-            }
-        }
-
-        var longest = 0
-        var run = 0
-        for (n in counts) {
-            if (n > 0) {
-                run++
-                if (run > longest) longest = run
-            } else run = 0
-        }
-        if (current > longest) longest = current
-
-        return StreakInfo(current, longest, todayDone, total, available, shieldActive)
+object LegacyMigration {
+    fun wipeLegacyStore(context: Context) {
+        val prefs = context.getSharedPreferences("streak", Context.MODE_PRIVATE)
+        if (prefs.getBoolean("legacy_wiped_v2", false)) return
+        prefs.edit().clear().putBoolean("legacy_wiped_v2", true).apply()
     }
 }

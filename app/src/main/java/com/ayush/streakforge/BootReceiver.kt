@@ -1,0 +1,20 @@
+package com.ayush.streakforge
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            scheduleRefresh(context)
+            CoroutineScope(Dispatchers.IO).launch {
+                StreakWidget().updateAll(context)
+            }
+        }
+    }
+}

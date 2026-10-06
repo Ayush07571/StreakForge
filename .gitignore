@@ -3,3 +3,8 @@ build/
 local.properties
 .idea/
 *.iml
+*.jks
+*.keystore
+*.p12
+*.pepk
+release.props

@@ -1,0 +1,37 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="110dp"
+    android:viewportWidth="250"
+    android:viewportHeight="110">
+    <!-- Background Card -->
+    <path
+        android:fillColor="#2A1D45"
+        android:pathData="M16,0h218c8.8,0 16,7.2 16,16v78c0,8.8 -7.2,16 -16,16h-218c-8.8,0 -16,-7.2 -16,-16v-78c0,-8.8 7.2,-16 16,-16z" />
+
+    <!-- Outer Flame -->
+    <path
+        android:fillColor="#FF5722"
+        android:pathData="M45,20C37,32 28,44 31,58C33,67 57,67 59,58C62,44 53,32 45,20Z" />
+    <!-- Core Flame -->
+    <path
+        android:fillColor="#FFC24B"
+        android:pathData="M45,36C41,43 37,50 39,58C40,62 50,62 51,58C53,50 49,43 45,36Z" />
+
+    <!-- Day 14 Label Visual representation -->
+    <path
+        android:fillColor="#FFC24B"
+        android:pathData="M80,24h50v14h-50z" />
+    <!-- Subtitle representation -->
+    <path
+        android:fillColor="#A99BC4"
+        android:pathData="M80,44h70v10h-70z" />
+
+    <!-- 7-day strip representation -->
+    <path android:fillColor="#FF6B2C" android:pathData="M20,76h18v14h-18z" />
+    <path android:fillColor="#FF6B2C" android:pathData="M44,76h18v14h-18z" />
+    <path android:fillColor="#FF6B2C" android:pathData="M68,76h18v14h-18z" />
+    <path android:fillColor="#1B1230" android:pathData="M92,76h18v14h-18z" />
+    <path android:fillColor="#FF6B2C" android:pathData="M116,76h18v14h-18z" />
+    <path android:fillColor="#FF6B2C" android:pathData="M140,76h18v14h-18z" />
+    <path android:fillColor="#FF6B2C" android:pathData="M164,76h18v14h-18z" />
+</vector>
