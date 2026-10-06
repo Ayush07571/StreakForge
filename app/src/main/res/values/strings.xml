@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">StreakForge</string>
+    <string name="widget_desc">Your GitHub streak, always on your home screen</string>
+</resources>

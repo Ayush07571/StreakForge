@@ -1,0 +1,244 @@
+package com.ayush.streakforge
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.glance.appwidget.updateAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+
+private val Night = Color(0xFF1B1230)
+private val Plum = Color(0xFF2A1D45)
+private val Ember = Color(0xFFFF6B2C)
+private val Gold = Color(0xFFFFC24B)
+private val Ash = Color(0xFFEDE6F5)
+private val Muted = Color(0xFFA99BC4)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        scheduleRefresh(this)
+        setContent {
+            MaterialTheme(
+                colorScheme = darkColorScheme(
+                    primary = Ember, background = Night, surface = Plum,
+                    onSurface = Ash, onBackground = Ash, onPrimary = Color.White
+                )
+            ) { App() }
+        }
+    }
+}
+
+@Composable
+fun App() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var streak by remember { mutableStateOf(Store.streak(ctx)) }
+    var user by remember { mutableStateOf(Store.username(ctx)) }
+    var token by remember { mutableStateOf(Store.token(ctx)) }
+    var claimed by remember { mutableStateOf(Store.claimed(ctx)) }
+    var solved by remember { mutableStateOf(Store.solved(ctx)) }
+    var status by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
+    val planStart = remember { Store.planStart(ctx) }
+
+    fun refresh() {
+        if (user.isBlank() || token.isBlank()) {
+            status = "Add your GitHub username and token at the bottom to start tracking."
+            return
+        }
+        scope.launch {
+            loading = true
+            status = ""
+            try {
+                val s = withContext(Dispatchers.IO) { GitHub.fetch(user, token) }
+                Store.saveStreak(ctx, s)
+                streak = s
+                StreakWidget().updateAll(ctx)
+            } catch (e: Exception) {
+                status = "Could not refresh: ${e.message}"
+            }
+            loading = false
+        }
+    }
+    LaunchedEffect(Unit) { refresh() }
+
+    val quote = QUOTES[LocalDate.now().dayOfYear % QUOTES.size]
+    val nextReward = REWARDS.firstOrNull { it.day > streak.current }
+    val daysIn = ChronoUnit.DAYS.between(planStart, LocalDate.now()).toInt().coerceAtLeast(0)
+    val week = (daysIn / 7 + 1).coerceAtMost(DSA_WEEKS.size)
+    val expected = ((daysIn + 1) * DAILY_GOAL).coerceAtMost(DSA_TARGET)
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Night).statusBarsPadding(),
+        contentPadding = PaddingValues(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🔥", fontSize = 64.sp)
+                Text("${streak.current}", fontSize = 96.sp, fontWeight = FontWeight.Black, color = Gold)
+                Text("day streak", fontSize = 18.sp, color = Ash)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    if (streak.todayDone) "Today is in the bank. Nice work."
+                    else "No commit yet today. Push something small.",
+                    color = if (streak.todayDone) Gold else Ember,
+                    textAlign = TextAlign.Center
+                )
+                Text("Best streak: ${streak.longest} days", color = Muted, fontSize = 13.sp)
+                if (status.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(status, color = Ember, fontSize = 13.sp, textAlign = TextAlign.Center)
+                }
+                TextButton(onClick = { refresh() }, enabled = !loading) {
+                    Text(if (loading) "Refreshing..." else "Refresh", color = Gold)
+                }
+            }
+        }
+
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
+                Text(
+                    "“$quote”",
+                    modifier = Modifier.padding(20.dp),
+                    fontStyle = FontStyle.Italic, fontSize = 17.sp, color = Ash
+                )
+            }
+        }
+
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Next reward", fontWeight = FontWeight.Bold, color = Ash)
+                    Spacer(Modifier.height(8.dp))
+                    if (nextReward == null) {
+                        Text("Every reward unlocked. You did it.", color = Gold)
+                    } else {
+                        Text(
+                            "${nextReward.day - streak.current} days to go: ${nextReward.emoji} ${nextReward.label}",
+                            color = Ash
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        LinearProgressIndicator(
+                            progress = { streak.current.toFloat() / nextReward.day },
+                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                            color = Ember, trackColor = Night
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("Your rewards", fontWeight = FontWeight.Bold, color = Ash)
+                    REWARDS.forEach { r ->
+                        val unlocked = streak.longest >= r.day
+                        val isClaimed = r.day in claimed
+                        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(r.emoji, fontSize = 24.sp)
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                Text(r.label, color = if (unlocked) Ash else Muted)
+                                Text("Day ${r.day}", color = Muted, fontSize = 12.sp)
+                            }
+                            when {
+                                isClaimed -> Text("Claimed", color = Muted)
+                                unlocked -> Button(
+                                    onClick = { Store.claim(ctx, r.day); claimed = Store.claimed(ctx) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Ember)
+                                ) { Text("Claim") }
+                                else -> Text("Locked", color = Muted)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("DSA in 6 months", fontWeight = FontWeight.Bold, color = Ash)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Week $week of ${DSA_WEEKS.size}: ${DSA_WEEKS[week - 1]}", color = Gold)
+                    Text("Goal: $DAILY_GOAL problems a day", color = Muted, fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { (solved.toFloat() / DSA_TARGET).coerceAtMost(1f) },
+                        modifier = Modifier.fillMaxWidth().height(8.dp),
+                        color = Gold, trackColor = Night
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "$solved of $DSA_TARGET solved. By today you should be at $expected.",
+                        color = if (solved >= expected) Gold else Ember, fontSize = 13.sp
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { Store.setSolved(ctx, solved - 1); solved = Store.solved(ctx) },
+                            enabled = solved > 0
+                        ) { Text("-1", color = Ash) }
+                        Button(
+                            onClick = { Store.setSolved(ctx, solved + 1); solved = Store.solved(ctx) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Ember)
+                        ) { Text("Solved one") }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("GitHub setup", fontWeight = FontWeight.Bold, color = Ash)
+                    OutlinedTextField(
+                        value = user, onValueChange = { user = it },
+                        label = { Text("GitHub username") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = token, onValueChange = { token = it },
+                        label = { Text("Personal access token") }, singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        "Create a classic token at github.com/settings/tokens with only the read:user scope. It stays on this phone.",
+                        color = Muted, fontSize = 12.sp
+                    )
+                    Button(
+                        onClick = { Store.saveLogin(ctx, user, token); refresh() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Ember)
+                    ) { Text("Save and refresh") }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(24.dp)) }
+    }
+}

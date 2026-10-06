@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Streak" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#1B1230</item>
+        <item name="android:statusBarColor">#1B1230</item>
+        <item name="android:navigationBarColor">#1B1230</item>
+    </style>
+</resources>
