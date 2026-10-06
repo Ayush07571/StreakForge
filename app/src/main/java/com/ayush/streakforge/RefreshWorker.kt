@@ -11,7 +11,8 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         val token = Store.token(applicationContext)
         if (user.isBlank() || token.isBlank()) return Result.success()
         return try {
-            Store.saveStreak(applicationContext, GitHub.fetch(user, token))
+            val shields = Store.shields(applicationContext)
+            Store.saveStreak(applicationContext, GitHub.fetch(user, token, shields))
             StreakWidget().updateAll(applicationContext)
             Result.success()
         } catch (e: Exception) {

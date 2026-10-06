@@ -77,7 +77,8 @@ fun App() {
             loading = true
             status = ""
             try {
-                val s = withContext(Dispatchers.IO) { GitHub.fetch(user, token) }
+                val availableShields = Store.shields(ctx)
+                val s = withContext(Dispatchers.IO) { GitHub.fetch(user, token, availableShields) }
                 Store.saveStreak(ctx, s)
                 streak = s
                 StreakWidget().updateAll(ctx)
@@ -135,10 +136,11 @@ fun App() {
                 FlameState.FADING -> Muted
                 FlameState.BROKEN -> Muted
             }
-            val statusMsg = when (stState) {
-                FlameState.LIT -> "Today is in the bank. Nice work."
-                FlameState.FADING -> "Push today to keep it alive"
-                FlameState.BROKEN -> "Streak broke. Start again today."
+            val statusMsg = when {
+                streak.shieldActive -> "🛡️ Shield Active! Protected 1 missed day."
+                stState == FlameState.LIT -> "Today is in the bank. Nice work."
+                stState == FlameState.FADING -> "Push today to keep it alive"
+                else -> "Streak broke. Start again today."
             }
             val statusColor = when (stState) {
                 FlameState.LIT -> Gold
@@ -167,9 +169,9 @@ fun App() {
                             detectTapGestures(
                                 onLongPress = {
                                     val next = when (stState) {
-                                        FlameState.LIT -> StreakInfo(current = streak.current.coerceAtLeast(1), longest = streak.longest, todayDone = false, total = streak.total)
-                                        FlameState.FADING -> StreakInfo(current = 0, longest = streak.longest, todayDone = false, total = streak.total)
-                                        FlameState.BROKEN -> StreakInfo(current = 7, longest = streak.longest.coerceAtLeast(7), todayDone = true, total = streak.total + 1)
+                                        FlameState.LIT -> StreakInfo(current = streak.current.coerceAtLeast(1), longest = streak.longest, todayDone = false, total = streak.total, shields = streak.shields, shieldActive = false)
+                                        FlameState.FADING -> StreakInfo(current = 0, longest = streak.longest, todayDone = false, total = streak.total, shields = streak.shields, shieldActive = false)
+                                        FlameState.BROKEN -> StreakInfo(current = 7, longest = streak.longest.coerceAtLeast(7), todayDone = true, total = streak.total + 1, shields = streak.shields, shieldActive = false)
                                     }
                                     Store.saveStreak(ctx, next)
                                     streak = next
@@ -186,13 +188,66 @@ fun App() {
                     color = statusColor,
                     textAlign = TextAlign.Center
                 )
-                Text("Best streak: ${streak.longest} days", color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛡️ ${streak.shields} Shield${if (streak.shields != 1) "s" else ""} available", color = Gold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(" • Best: ${streak.longest} days", color = Muted, fontSize = 13.sp)
+                }
                 if (status.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     Text(status, color = Ember, fontSize = 13.sp, textAlign = TextAlign.Center)
                 }
                 TextButton(onClick = { refresh() }, enabled = !loading) {
                     Text(if (loading) "Refreshing..." else "Refresh", color = Gold)
+                }
+            }
+        }
+
+        // Restore Streak Option (Twice per month)
+        item {
+            val restoresUsed = Store.restoresThisMonth(ctx)
+            val restoresLeft = (2 - restoresUsed).coerceAtLeast(0)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Plum),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("🛡️ Restore Streak", fontWeight = FontWeight.Bold, color = Ash, fontSize = 16.sp)
+                        Text("$restoresLeft/2 left this month", color = Gold, fontSize = 12.sp)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "You can restore your streak up to 2 times every month if you accidentally missed a push.",
+                        color = Muted, fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            if (Store.canRestore(ctx)) {
+                                val remaining = Store.useRestore(ctx)
+                                val restoredCurrent = streak.longest.coerceAtLeast(1)
+                                val restoredStreak = StreakInfo(
+                                    current = restoredCurrent,
+                                    longest = streak.longest.coerceAtLeast(restoredCurrent),
+                                    todayDone = true,
+                                    total = streak.total + 1,
+                                    shields = streak.shields,
+                                    shieldActive = false
+                                )
+                                Store.saveStreak(ctx, restoredStreak)
+                                streak = restoredStreak
+                                status = "Streak restored to $restoredCurrent days! You have $remaining restore(s) left this month."
+                                scope.launch { StreakWidget().updateAll(ctx) }
+                            } else {
+                                status = "No restores remaining for this calendar month (2/2 used)."
+                            }
+                        },
+                        enabled = Store.canRestore(ctx),
+                        colors = ButtonDefaults.buttonColors(containerColor = Ember)
+                    ) {
+                        Text("Restore Streak ($restoresLeft available)")
+                    }
                 }
             }
         }
@@ -221,7 +276,7 @@ fun App() {
                         )
                         Spacer(Modifier.height(10.dp))
                         LinearProgressIndicator(
-                            progress = { streak.current.toFloat() / nextReward.day },
+                            progress = { (streak.current.toFloat() / nextReward.day).coerceAtMost(1f) },
                             modifier = Modifier.fillMaxWidth().height(8.dp),
                             color = Ember, trackColor = Night
                         )
@@ -233,20 +288,34 @@ fun App() {
         item {
             Card(colors = CardDefaults.cardColors(containerColor = Plum), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.padding(20.dp)) {
-                    Text("Your rewards", fontWeight = FontWeight.Bold, color = Ash)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Your rewards", fontWeight = FontWeight.Bold, color = Ash)
+                        Text("${claimed.size}/${REWARDS.size} claimed", color = Muted, fontSize = 12.sp)
+                    }
                     REWARDS.forEach { r ->
-                        val unlocked = streak.longest >= r.day
+                        val unlocked = streak.longest >= r.day || streak.current >= r.day
                         val isClaimed = r.day in claimed
                         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.emoji, fontSize = 24.sp)
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                Text(r.label, color = if (unlocked) Ash else Muted)
-                                Text("Day ${r.day}", color = Muted, fontSize = 12.sp)
+                                Text(
+                                    r.label,
+                                    color = if (unlocked) Ash else Muted,
+                                    fontWeight = if (r.grantShield) FontWeight.Bold else FontWeight.Normal
+                                )
+                                Text("Day ${r.day}${if (r.grantShield) " • +1 Shield 🛡️" else ""}", color = if (r.grantShield) Gold else Muted, fontSize = 12.sp)
                             }
                             when {
                                 isClaimed -> Text("Claimed", color = Muted)
                                 unlocked -> Button(
-                                    onClick = { Store.claim(ctx, r.day); claimed = Store.claimed(ctx) },
+                                    onClick = {
+                                        Store.claim(ctx, r.day)
+                                        claimed = Store.claimed(ctx)
+                                        val newStreak = Store.streak(ctx)
+                                        streak = newStreak
+                                        status = if (r.grantShield) "Reward claimed! +1 Streak Shield added to inventory 🛡️" else "Reward claimed!"
+                                        scope.launch { StreakWidget().updateAll(ctx) }
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = Ember)
                                 ) { Text("Claim") }
                                 else -> Text("Locked", color = Muted)

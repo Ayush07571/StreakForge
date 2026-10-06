@@ -58,16 +58,18 @@ private fun WidgetContent(s: StreakInfo) {
         FlameState.BROKEN -> Color(0xFFEDE6F5) // Ash
     }
 
-    val labelColor = when (state) {
-        FlameState.LIT -> Color(0xFFFFC24B) // Gold
-        FlameState.FADING -> Color(0xFFFF6B2C) // Ember
-        FlameState.BROKEN -> Color(0xFFFF6B2C) // Ember
+    val labelColor = when {
+        s.shieldActive -> Color(0xFFFFC24B) // Gold for active shield
+        state == FlameState.LIT -> Color(0xFFFFC24B)
+        state == FlameState.FADING -> Color(0xFFFF6B2C)
+        else -> Color(0xFFFF6B2C)
     }
 
-    val labelText = when (state) {
-        FlameState.LIT -> "Done today"
-        FlameState.FADING -> "Push today to keep it alive"
-        FlameState.BROKEN -> "Streak broke. Start again today."
+    val labelText = when {
+        s.shieldActive -> "🛡️ Shield Active"
+        state == FlameState.LIT -> "Done today"
+        state == FlameState.FADING -> "Push today to keep it alive"
+        else -> "Streak broke. Start again today."
     }
 
     Column(
